@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BodegaControl · Bodega "Chanita"</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            uiDark: '#0F172A',
+            uiHeader: '#1E293B',
+            uiPrimary: '#4338CA',
+            uiPrimarySoft: '#EEF2FF',
+            uiSuccess: '#059669',
+            uiWarn: '#D97706',
+            uiWarnSoft: '#FEF3C7'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-100 text-slate-900 font-sans min-h-screen pb-20">
+
+  <!-- CABECERA SUPERIOR -->
+  <header class="bg-uiHeader text-white px-4 py-3 shadow-md sticky top-0 z-40">
+    <div class="max-w-4xl mx-auto flex justify-between items-center">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="font-extrabold text-lg tracking-tight">BodegaControl</span>
+          <span class="bg-uiSuccess text-[10px] font-bold px-2 py-0.5 rounded uppercase">ONLINE</span>
+          <a href="/docs" target="_blank" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded transition">
+            Abrir Swagger (/docs) &rarr;
+          </a>
+        </div>
+        <p class="text-xs text-slate-300">Bodega "Chanita" · Urb. Vista al Mar (Frente a I.E. Carlos A. Velásquez)</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="text-xs text-slate-300 hidden sm:inline">Rol Activo (RF01):</label>
+        <select id="roleSelector" onchange="cambiarRol()" class="bg-slate-800 text-white text-xs font-bold px-2.5 py-1.5 rounded border border-slate-600">
+          <option value="DUENA">Dueña: Sra. Hilda (Admin)</option>
+          <option value="AYUDANTE">Ayudante (Mostrador)</option>
+          <option value="CLIENTE">Vecino: Juan Pérez (Consulta)</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main class="max-w-4xl mx-auto p-4 space-y-6">
+
+    <!-- ALERTA FEEDBACK MULTIUSO -->
+    <div id="alertBox" class="hidden p-3.5 rounded-lg border text-xs font-semibold shadow-sm"></div>
+
+    <!-- SECCION 1: VENTA RAPIDA EN MOSTRADOR (<= 10 SEG) -->
+    <section id="sec-venta" class="space-y-4">
+      <div class="grid md:grid-cols-12 gap-4">
+        
+        <!-- Catalogo Rapido -->
+        <div class="md:col-span-7 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="font-bold text-sm text-uiHeader uppercase">1. Seleccionar Producto (Mostrador)</h2>
+            <span class="text-[11px] text-slate-500">Toque rápido &le; 10s</span>
+          </div>
+          <input type="text" id="searchInput" oninput="renderProductosMostrador()" placeholder="Buscar arroz, leche, papel higiénico..." class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg mb-3 focus:outline-none focus:border-uiPrimary">
+          <div id="catalogoMostrador" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
+        </div>
+
+        <!-- Cesta y Confirmacion de Venta / Fiado -->
+        <div class="md:col-span-5 bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between">
+          <div>
+            <h2 class="font-bold text-sm text-uiHeader uppercase mb-3">2. Cesta de Venta Actual</h2>
+            <div id="itemSeleccionadoBox" class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-2">
+              <p class="text-slate-400 italic">Seleccione un producto de la lista izquierda...</p>
+            </div>
+
+            <div class="mt-3">
+              <label class="block text-xs font-bold text-slate-700 mb-1">Cantidad (admite decimales ej. 0.5 kg):</label>
+              <input type="number" id="inputCantidad" value="1" step="0.25" min="0.1" oninput="actualizarTotal()" class="w-full px-3 py-2 text-sm font-bold border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="mt-4 p-3 bg-uiPrimarySoft border border-uiPrimary rounded-lg flex justify-between items-center">
+              <span class="text-xs font-extrabold text-uiPrimary uppercase">Total Compra:</span>
+              <span id="txtTotalCompra" class="text-lg font-black text-uiPrimary">S/ 0.00</span>
+            </div>
+          </div>
+
+          <div class="space-y-2 mt-4 pt-3 border-t border-slate-100">
+            <button onclick="ejecutarVenta(false)" class="w-full py-2.5 bg-uiSuccess hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow transition uppercase">
+              Cobrar al Contado (Efectivo / Yape)
+            </button>
+            <button onclick="abrirModalFiado()" class="w-full py-2.5 bg-uiWarn hover:bg-amber-700 text-white font-bold text-xs rounded-lg shadow transition uppercase">
+              Cargar a Crédito (Fiado a Vecino)
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODAL / PANEL DE CONFIRMACION DE FIADO (WIREFRAME 2) -->
+    <section id="modalFiado" class="hidden bg-white p-5 rounded-xl shadow-lg border-2 border-uiPrimary space-y-4">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 class="font-black text-sm text-uiHeader uppercase">&larr; Confirmar Venta a Crédito (Validación RN01 y RN02)</h3>
+        <button onclick="cerrarModalFiado()" class="text-xs text-slate-500 font-bold hover:text-red-600">✕ Cerrar</button>
+      </div>
+      <div class="grid sm:grid-cols-2 gap-4 text-xs">
+        <div class="space-y-2">
+          <label class="block font-bold text-slate-700">Seleccionar Vecino del Padrón:</label>
+          <select id="selectClienteFiado" onchange="actualizarInfoClienteFiado()" class="w-full p-2 border border-slate-300 rounded-lg font-bold text-uiDark"></select>
+          <div id="fichaClienteFiado" class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1"></div>
+        </div>
+        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+          <div class="flex justify-between"><span>Deuda anterior registrada:</span><strong id="fiadoDeudaAnt">S/ 0.00</strong></div>
+          <div class="flex justify-between text-uiWarn"><span>Monto de esta venta:</span><strong id="fiadoMontoVenta">+ S/ 0.00</strong></div>
+          <hr>
+          <div class="flex justify-between text-sm font-black text-uiDark"><span>Nuevo Saldo Acumulado:</span><span id="fiadoNuevoSaldo">S/ 0.00</span></div>
+          <div class="pt-1">
+            <div class="flex justify-between text-[11px] text-slate-500 mb-1">
+              <span>Uso del cupo (Tope S/ 100.00 - RN01):</span>
+              <strong id="fiadoPctUso" class="text-uiPrimary">0%</strong>
+            </div>
+            <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+              <div id="fiadoBarraCupo" class="bg-uiPrimary h-full" style="width: 0%"></div>
+            </div>
+          </div>
+          <label class="flex items-center gap-2 pt-2 text-[11px] font-semibold text-slate-700">
+            <input type="checkbox" id="chkAutorizacionDuena" class="rounded">
+            Autorización manual de la Sra. Hilda (Permite superar S/ 100)
+          </label>
+        </div>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="ejecutarVenta(true)" class="flex-1 py-2.5 bg-uiPrimary text-white font-bold text-xs rounded-lg uppercase shadow">
+          Registrar Fiado en Cuenta
+        </button>
+        <button onclick="cerrarModalFiado()" class="px-5 py-2.5 bg-slate-200 text-slate-700 font-bold text-xs rounded-lg uppercase">
+          Cancelar Operación
+        </button>
+      </div>
+    </section>
+
+    <!-- SECCION 2: STOCK, RECEPCION PREVENTISTAS Y ALTA DE PRODUCTO -->
+    <section id="sec-stock" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <h2 class="font-bold text-sm text-uiHeader uppercase mb-3">Catálogo de Inventario y Alertas Tempranas (RF02, RF07)</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-800 text-white">
+                <th class="p-2">ID</th>
+                <th class="p-2">Producto</th>
+                <th class="p-2">Costo</th>
+                <th class="p-2">Precio Venta</th>
+                <th class="p-2">Stock Actual</th>
+                <th class="p-2">Mínimo</th>
+                <th class="p-2">Estado (RF07)</th>
+              </tr>
+            </thead>
+            <tbody id="tablaStockBody" class="divide-y divide-slate-200"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <!-- Recepcion de Mercaderia RF06 -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-2 text-xs">
+          <h3 class="font-bold text-uiHeader uppercase">Recepción de Preventistas (RF06)</h3>
+          <select id="selectProdEnvio" class="w-full p-2 border rounded"></select>
+          <input type="number" id="cantEnvio" placeholder="Cantidad recibida (ej. 24)" class="w-full p-2 border rounded">
+          <button onclick="registrarEnvio()" class="w-full py-2 bg-uiHeader text-white font-bold rounded uppercase">Sumar Lote al Inventario</button>
+        </div>
+
+        <!-- Nuevo Producto con Validacion RN04 -->
+        <div id="boxNuevoProducto" class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-2 text-xs">
+          <h3 class="font-bold text-uiHeader uppercase">Alta de Producto (Valida Margen &ge;20% - RN04)</h3>
+          <input type="text" id="npNombre" placeholder="Nombre del producto" class="w-full p-2 border rounded">
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" id="npCosto" placeholder="Costo Compra (S/)" step="0.1" class="p-2 border rounded">
+            <input type="number" id="npPrecio" placeholder="Precio Venta (S/)" step="0.1" class="p-2 border rounded">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" id="npStock" placeholder="Stock Inicial" step="0.5" class="p-2 border rounded">
+            <input type="number" id="npMin" placeholder="Stock Mínimo" step="1" class="p-2 border rounded">
+          </div>
+          <button onclick="crearProducto()" class="w-full py-2 bg-uiPrimary text-white font-bold rounded uppercase">Guardar Producto</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCION 3: DEUDAS, ABONOS Y PORTAL VECINO (RF05, RF08) -->
+    <section id="sec-deudas" class="hidden space-y-4">
+      <div class="grid sm:grid-cols-12 gap-4">
+        <div class="sm:col-span-7 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          <h2 class="font-bold text-sm text-uiHeader uppercase mb-3">Padrón de Clientes y Estado de Cuenta (RF08)</h2>
+          <div id="listaClientesDeuda" class="space-y-3 text-xs"></div>
+        </div>
+        <div id="boxRegistrarAbono" class="sm:col-span-5 bg-white p-4 rounded-xl shadow-sm border border-slate-200 space-y-3 text-xs">
+          <h2 class="font-bold text-sm text-uiHeader uppercase">Registrar Abono de Deuda (RF05)</h2>
+          <label class="block font-semibold">Vecino que abona:</label>
+          <select id="selectClienteAbono" class="w-full p-2 border rounded font-bold"></select>
+          <label class="block font-semibold">Monto a amortizar (S/):</label>
+          <input type="number" id="inputMontoAbono" placeholder="Ej. 15.00" step="0.5" class="w-full p-2 border rounded font-bold">
+          <button onclick="registrarAbono()" class="w-full py-2.5 bg-uiSuccess text-white font-bold rounded-lg uppercase shadow">
+            Confirmar Abono y Descontar Saldo
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECCION 4: REPORTES CONSOLIDADOS (EXCLUSIVO DUENA - RF01 / RF09) -->
+    <section id="sec-reporte" class="hidden space-y-4">
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-4">
+        <div class="flex justify-between items-center border-b pb-3">
+          <div>
+            <h2 class="font-black text-base text-uiHeader uppercase">Balance Mensual Consolidado (RF09)</h2>
+            <p class="text-xs text-slate-500">Vista confidencial exclusiva de la propietaria (Sra. Hilda)</p>
+          </div>
+          <button onclick="window.print()" class="px-3 py-1.5 bg-uiPrimary text-white text-xs font-bold rounded shadow">
+            Exportar / Imprimir PDF
+          </button>
+        </div>
+        <div id="kpiReportes" class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center"></div>
+        <div>
+          <h3 class="font-bold text-xs text-slate-700 uppercase mb-2">Últimas Transacciones Registradas (ACID)</h3>
+          <div id="listaTransacciones" class="text-xs space-y-1.5"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BARRA DE NAVEGACION INFERIOR (TABS DEL WIREFRAME) -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-300 shadow-lg z-50">
+    <div class="max-w-4xl mx-auto grid grid-cols-4 text-center py-2 text-xs font-bold">
+      <button id="tab-venta" onclick="mostrarTab('venta')" class="text-uiPrimary py-1">🛒 Venta</button>
+      <button id="tab-stock" onclick="mostrarTab('stock')" class="text-slate-500 py-1">📦 Stock</button>
+      <button id="tab-deudas" onclick="mostrarTab('deudas')" class="text-slate-500 py-1">📋 Deudas</button>
+      <button id="tab-reporte" onclick="mostrarTab('reporte')" class="text-slate-500 py-1">📊 Reporte</button>
+    </div>
+  </nav>
+
+  <script>
+    let catalogo = [];
+    let clientes = [];
+    let productoSeleccionado = null;
+    let rolActual = 'DUENA';
+
+    async function cargarDatos() {
+      const resProd = await fetch('/api/productos');
+      catalogo = await resProd.json();
+      const resCli = await fetch('/api/clientes');
+      clientes = await resCli.json();
+
+      if (!productoSeleccionado && catalogo.length > 0) {
+        productoSeleccionado = catalogo[0];
+      } else if (productoSeleccionado) {
+        productoSeleccionado = catalogo.find(p => p.id === productoSeleccionado.id) || catalogo[0];
+      }
+
+      renderProductosMostrador();
+      renderSeleccionado();
+      renderTablaStock();
+      renderClientes();
+    }
+
+    function mostrarAlerta(msg, exito = true) {
+      const box = document.getElementById('alertBox');
+      box.className = `p-3.5 rounded-lg border text-xs font-bold shadow-sm ${exito ? 'bg-emerald-50 border-emerald-400 text-emerald-900' : 'bg-red-50 border-red-400 text-red-900'}`;
+      box.innerText = msg;
+      box.classList.remove('hidden');
+      setTimeout(() => box.classList.add('hidden'), 5500);
+    }
+
+    function renderProductosMostrador() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const cont = document.getElementById('catalogoMostrador');
+      cont.innerHTML = '';
+      catalogo.filter(p => p.nombre.toLowerCase().includes(q)).forEach(p => {
+        const badge = p.alerta_stock_critico
+          ? `<span class="bg-uiWarnSoft text-uiWarn px-2 py-0.5 rounded text-[10px] font-bold">¡Stock Crítico: ${p.stock_actual}!</span>`
+          : `<span class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-[10px]">Stock: ${p.stock_actual}</span>`;
+        const div = document.createElement('div');
+        div.className = `p-2.5 rounded-lg border cursor-pointer flex justify-between items-center transition ${productoSeleccionado && productoSeleccionado.id === p.id ? 'border-uiPrimary bg-uiPrimarySoft' : 'border-slate-200 hover:bg-slate-50'}`;
+        div.onclick = () => { productoSeleccionado = p; renderProductosMostrador(); renderSeleccionado(); };
+        div.innerHTML = `
+          <div>
+            <p class="font-bold text-xs text-uiDark">${p.nombre}</p>
+            <div class="flex items-center gap-2 mt-0.5">${badge}<span class="text-[10px] text-slate-400">${p.categoria}</span></div>
+          </div>
+          <span class="font-black text-sm text-uiPrimary">S/ ${p.precio_venta.toFixed(2)}</span>
+        `;
+        cont.appendChild(div);
+      });
+    }
+
+    function renderSeleccionado() {
+      const box = document.getElementById('itemSeleccionadoBox');
+      if (!productoSeleccionado) return;
+      box.innerHTML = `
+        <div class="flex justify-between items-center">
+          <span class="font-black text-uiDark text-sm">${productoSeleccionado.nombre}</span>
+          <span class="bg-uiWarnSoft text-uiWarn px-2 py-0.5 rounded text-[10px] font-bold">Stock: ${productoSeleccionado.stock_actual}</span>
+        </div>
+        <p class="text-slate-500">Precio Unitario: <strong>S/ ${productoSeleccionado.precio_venta.toFixed(2)}</strong></p>
+      `;
+      actualizarTotal();
+    }
+
+    function actualizarTotal() {
+      if (!productoSeleccionado) return;
+      const cant = parseFloat(document.getElementById('inputCantidad').value) || 0;
+      const total = cant * productoSeleccionado.precio_venta;
+      document.getElementById('txtTotalCompra').innerText = `S/ ${total.toFixed(2)}`;
+      if (!document.getElementById('modalFiado').classList.contains('hidden')) {
+        actualizarInfoClienteFiado();
+      }
+    }
+
+    function abrirModalFiado() {
+      document.getElementById('modalFiado').classList.remove('hidden');
+      const sel = document.getElementById('selectClienteFiado');
+      sel.innerHTML = clientes.map(c => `<option value="${c.id}">${c.nombre} (Deuda: S/ ${c.saldo_deudor.toFixed(2)})</option>`).join('');
+      actualizarInfoClienteFiado();
+    }
+
+    function cerrarModalFiado() {
+      document.getElementById('modalFiado').classList.add('hidden');
+    }
+
+    function actualizarInfoClienteFiado() {
+      const id = parseInt(document.getElementById('selectClienteFiado').value);
+      const cli = clientes.find(c => c.id === id);
+      if (!cli || !productoSeleccionado) return;
+      const cant = parseFloat(document.getElementById('inputCantidad').value) || 0;
+      const montoVenta = cant * productoSeleccionado.precio_venta;
+      const nuevoSaldo = cli.saldo_deudor + montoVenta;
+      const pct = Math.min(100, Math.round((nuevoSaldo / cli.limite_credito) * 100));
+
+      document.getElementById('fichaClienteFiado').innerHTML = `
+        <p class="font-bold text-uiDark">${cli.nombre}</p>
+        <p class="text-[11px] text-slate-500">${cli.direccion} · Días sin abonar: <strong>${cli.dias_mora} días</strong></p>
+      `;
+      document.getElementById('fiadoDeudaAnt').innerText = `S/ ${cli.saldo_deudor.toFixed(2)}`;
+      document.getElementById('fiadoMontoVenta').innerText = `+ S/ ${montoVenta.toFixed(2)}`;
+      document.getElementById('fiadoNuevoSaldo').innerText = `S/ ${nuevoSaldo.toFixed(2)}`;
+      document.getElementById('fiadoPctUso').innerText = `${pct}%`;
+      document.getElementById('fiadoBarraCupo').style.width = `${pct}%`;
+    }
+
+    async function ejecutarVenta(esCredito) {
+      if (!productoSeleccionado) return;
+      const cantidad = parseFloat(document.getElementById('inputCantidad').value);
+      const payload = {
+        producto_id: productoSeleccionado.id,
+        cantidad: cantidad,
+        es_credito: esCredito,
+        cliente_id: esCredito ? parseInt(document.getElementById('selectClienteFiado').value) : null,
+        autorizacion_duena: esCredito ? document.getElementById('chkAutorizacionDuena').checked : false
+      };
+
+      const res = await fetch('/api/ventas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        mostrarAlerta(`❌ BLOQUEO DE REGLA DE NEGOCIO: ${data.detail}`, false);
+        return;
+      }
+      cerrarModalFiado();
+      const alertaTxt = data.alerta_stock_critico_RF07 ? ' ⚠️ ¡ALERTA RF07: Producto entró en STOCK CRÍTICO!' : '';
+      mostrarAlerta(`✅ Venta (${data.modalidad}) registrada por S/ ${data.total_cobrado.toFixed(2)}. Stock restante: ${data.stock_restante}.${alertaTxt}`, true);
+      await cargarDatos();
+    }
+
+    function renderTablaStock() {
+      const tbody = document.getElementById('tablaStockBody');
+      tbody.innerHTML = catalogo.map(p => `
+        <tr>
+          <td class="p-2 font-bold">${p.id}</td>
+          <td class="p-2 font-bold text-uiDark">${p.nombre}</td>
+          <td class="p-2">S/ ${p.costo_compra.toFixed(2)}</td>
+          <td class="p-2 font-bold text-uiPrimary">S/ ${p.precio_venta.toFixed(2)}</td>
+          <td class="p-2 font-bold">${p.stock_actual}</td>
+          <td class="p-2 text-slate-500">${p.stock_minimo}</td>
+          <td class="p-2">${p.alerta_stock_critico ? '<span class="bg-red-100 text-red-800 px-2 py-0.5 rounded font-bold">CRÍTICO (Pedir)</span>' : '<span class="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold">Óptimo</span>'}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('selectProdEnvio').innerHTML = catalogo.map(p => `<option value="${p.id}">${p.nombre} (Stock: ${p.stock_actual})</option>`).join('');
+    }
+
+    async function registrarEnvio() {
+      const prodId = parseInt(document.getElementById('selectProdEnvio').value);
+      const cant = parseFloat(document.getElementById('cantEnvio').value);
+      const res = await fetch('/api/envios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ producto_id: prodId, cantidad_recibida: cant })
+      });
+      const data = await res.json();
+      if (!res.ok) return mostrarAlerta(`❌ Error: ${data.detail}`, false);
+      mostrarAlerta(`✅ ${data.mensaje}. Nuevo stock: ${data.nuevo_stock}`, true);
+      await cargarDatos();
+    }
+
+    async function crearProducto() {
+      const payload = {
+        nombre: document.getElementById('npNombre').value,
+        costo_compra: parseFloat(document.getElementById('npCosto').value),
+        precio_venta: parseFloat(document.getElementById('npPrecio').value),
+        stock_actual: parseFloat(document.getElementById('npStock').value),
+        stock_minimo: parseFloat(document.getElementById('npMin').value)
+      };
+      const res = await fetch('/api/productos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const msg = Array.isArray(data.detail) ? data.detail[0].msg : data.detail;
+        return mostrarAlerta(`❌ RECHAZADO POR VALIDACIÓN (RN04): ${msg}`, false);
+      }
+      mostrarAlerta(`✅ Producto '${data.nombre}' incorporado al catálogo.`, true);
+      await cargarDatos();
+    }
+
+    function renderClientes() {
+      const lista = document.getElementById('listaClientesDeuda');
+      const filtrados = rolActual === 'CLIENTE' ? clientes.filter(c => c.id === 1) : clientes;
+      lista.innerHTML = filtrados.map(c => `
+        <div class="p-3 rounded-lg border border-slate-200 flex justify-between items-center bg-slate-50">
+          <div>
+            <p class="font-bold text-uiDark">${c.nombre}</p>
+            <p class="text-[11px] text-slate-500">${c.direccion} · Mora: <strong>${c.dias_mora} días</strong> ${c.dias_mora > 30 ? '<span class="text-red-600 font-bold">(BLOQUEADO RN02)</span>' : ''}</p>
+          </div>
+          <div class="text-right">
+            <span class="text-sm font-black text-red-600">S/ ${c.saldo_deudor.toFixed(2)}</span>
+            <p class="text-[10px] text-slate-400">Tope: S/ ${c.limite_credito.toFixed(2)}</p>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('selectClienteAbono').innerHTML = clientes.map(c => `<option value="${c.id}">${c.nombre} (Debe: S/ ${c.saldo_deudor.toFixed(2)})</option>`).join('');
+    }
+
+    async function registrarAbono() {
+      const cliId = parseInt(document.getElementById('selectClienteAbono').value);
+      const monto = parseFloat(document.getElementById('inputMontoAbono').value);
+      const res = await fetch('/api/abonos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: cliId, monto: monto })
+      });
+      const data = await res.json();
+      if (!res.ok) return mostrarAlerta(`❌ Error en abono: ${data.detail}`, false);
+      mostrarAlerta(`✅ Abono de S/ ${monto.toFixed(2)} registrado. Nuevo saldo de ${data.cliente}: S/ ${data.nuevo_saldo_deudor.toFixed(2)}`, true);
+      await cargarDatos();
+    }
+
+    async function cargarReporte() {
+      const res = await fetch('/api/reportes/mensual');
+      const rep = await res.json();
+      document.getElementById('kpiReportes').innerHTML = `
+        <div class="p-3 bg-slate-50 border rounded-lg"><p class="text-[10px] uppercase text-slate-500 font-bold">Total Ventas</p><p class="text-lg font-black text-uiDark">S/ ${rep.total_ingresos_brutos.toFixed(2)}</p></div>
+        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg"><p class="text-[10px] uppercase text-emerald-700 font-bold">Utilidad Bruta (20%)</p><p class="text-lg font-black text-emerald-800">S/ ${rep.ganancia_estimada_20_pct.toFixed(2)}</p></div>
+        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg"><p class="text-[10px] uppercase text-amber-700 font-bold">Deuda en Calle</p><p class="text-lg font-black text-amber-800">S/ ${rep.deuda_acumulada_vecinos.toFixed(2)}</p></div>
+        <div class="p-3 bg-red-50 border border-red-200 rounded-lg"><p class="text-[10px] uppercase text-red-700 font-bold">Ítems Críticos</p><p class="text-lg font-black text-red-800">${rep.productos_en_alerta_critica.length}</p></div>
+      `;
+      document.getElementById('listaTransacciones').innerHTML = rep.ultimas_transacciones.map(t => `
+        <div class="p-2 bg-slate-50 border rounded flex justify-between">
+          <span><strong>#${t.id}</strong> · ${t.producto_nombre} (x${t.cantidad})</span>
+          <span class="font-bold">${t.modalidad}: S/ ${t.total.toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    function cambiarRol() {
+      rolActual = document.getElementById('roleSelector').value;
+      if (rolActual === 'CLIENTE') {
+        mostrarTab('deudas');
+        document.getElementById('boxRegistrarAbono').classList.add('hidden');
+        mostrarAlerta('🔒 Modo Cliente Vecino (RF08 / RNF04): Solo puede visualizar su propio saldo e historial.', true);
+      } else {
+        document.getElementById('boxRegistrarAbono').classList.remove('hidden');
+        if (rolActual === 'AYUDANTE') {
+          mostrarAlerta('👤 Modo Ayudante (RF01): Acceso a Ventas y Stock. Reportes gerenciales restringidos.', true);
+          mostrarTab('venta');
+        } else {
+          mostrarAlerta('👑 Modo Dueña Sra. Hilda (RF01): Acceso total habilitado.', true);
+        }
+      }
+      renderClientes();
+    }
+
+    function mostrarTab(tab) {
+      if (rolActual === 'CLIENTE' && tab !== 'deudas') {
+        return mostrarAlerta('❌ Acceso denegado (RF01/RNF04): El vecino solo tiene acceso a su estado de cuenta.', false);
+      }
+      if (rolActual === 'AYUDANTE' && tab === 'reporte') {
+        return mostrarAlerta('❌ Acceso restringido (RF01): El ayudante no puede visualizar reportes de ganancias de la dueña.', false);
+      }
+      ['venta', 'stock', 'deudas', 'reporte'].forEach(t => {
+        document.getElementById(`sec-${t}`).classList.toggle('hidden', t !== tab);
+        document.getElementById(`tab-${t}`).className = t === tab ? 'text-uiPrimary py-1 font-extrabold border-t-2 border-uiPrimary' : 'text-slate-500 py-1';
+      });
+      if (tab === 'reporte') cargarReporte();
+    }
+
+    window.onload = cargarDatos;
+  </script>
+</body>
+</html>
