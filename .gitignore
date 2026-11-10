@@ -1,0 +1,17 @@
+# Entornos virtuales y cache de Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Variables de entorno y bases de datos locales (Seguridad RNF04)
+.env
+*.sqlite3
+*.db
+
+# Archivos de sistema e IDE
+.DS_Store
+.vscode/
+.idea/
